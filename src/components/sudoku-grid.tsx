@@ -1,8 +1,16 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { X, Crown } from "lucide-react";
 
 type CellState = "" | "x" | "crown";
-const nineColours = [
+type Grid<T> = T[][];
+
+interface SudokuGridComponentProps {
+  regions: number[][];
+  solution: number[][];
+}
+
+const GRID_SIZE = 6;
+const COLORS = [
   "bg-red-200",
   "bg-blue-200",
   "bg-green-200",
@@ -12,58 +20,53 @@ const nineColours = [
   "bg-pink-200",
   "bg-brown-200",
   "bg-gray-200",
-];
+] as const;
+
+const createGrid = <T,>(size: number, defaultValue: T): Grid<T> =>
+  Array.from({ length: size }, () => Array(size).fill(defaultValue));
+
+const directions = [
+  [-1, -1],
+  [-1, 0],
+  [-1, 1],
+  [0, -1],
+  [0, 1],
+  [1, -1],
+  [1, 0],
+  [1, 1],
+] as const;
 
 export function SudokuGridComponent({
   regions,
   solution,
-}: {
-  regions: number[][];
-  solution: number[][];
-}) {
-  const regionsGrid = regions;
-  console.log(regionsGrid, regions);
-  const [grid, setGrid] = useState<CellState[][]>(
-    Array(6)
-      .fill(null)
-      .map(() => Array(6).fill(""))
+}: SudokuGridComponentProps) {
+  const [grid, setGrid] = useState<Grid<CellState>>(() =>
+    createGrid(GRID_SIZE, "")
   );
-  const isDragging = useRef(false);
-  const [touchingQueens, setTouchingQueens] = useState<boolean[][]>(
-    Array(6)
-      .fill(null)
-      .map(() => Array(6).fill(false))
+  const [touchingQueens, setTouchingQueens] = useState<Grid<boolean>>(() =>
+    createGrid(GRID_SIZE, false)
   );
-  const [conflictingQueens, setConflictingQueens] = useState<boolean[][]>(
-    Array(6)
-      .fill(null)
-      .map(() => Array(6).fill(false))
+  const [conflictingQueens, setConflictingQueens] = useState<Grid<boolean>>(
+    () => createGrid(GRID_SIZE, false)
   );
   const [solved, setSolved] = useState(false);
+  const isDragging = useRef(false);
 
-  const checkTouchingQueens = (newGrid: CellState[][]) => {
-    const directions = [
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, -1],
-      [0, 1],
-      [1, -1],
-      [1, 0],
-      [1, 1],
-    ];
+  const checkTouchingQueens = useCallback((newGrid: Grid<CellState>) => {
+    const newTouchingQueens = createGrid(GRID_SIZE, false);
 
-    const newTouchingQueens = Array(6)
-      .fill(null)
-      .map(() => Array(6).fill(false));
-
-    for (let row = 0; row < 6; row++) {
-      for (let col = 0; col < 6; col++) {
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
         if (newGrid[row][col] === "crown") {
           for (const [dx, dy] of directions) {
             const newRow = row + dx;
             const newCol = col + dy;
-            if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 6) {
+            if (
+              newRow >= 0 &&
+              newRow < GRID_SIZE &&
+              newCol >= 0 &&
+              newCol < GRID_SIZE
+            ) {
               if (newGrid[newRow][newCol] === "crown") {
                 newTouchingQueens[row][col] = true;
                 newTouchingQueens[newRow][newCol] = true;
@@ -75,28 +78,23 @@ export function SudokuGridComponent({
     }
 
     setTouchingQueens(newTouchingQueens);
-  };
+  }, []);
 
-  const checkConflictingQueens = (newGrid: CellState[][]) => {
-    const newConflictingQueens = Array(6)
-      .fill(null)
-      .map(() => Array(6).fill(false));
+  const checkConflictingQueens = useCallback((newGrid: Grid<CellState>) => {
+    const newConflictingQueens = createGrid(GRID_SIZE, false);
 
-    for (let row = 0; row < 6; row++) {
-      for (let col = 0; col < 6; col++) {
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
         if (newGrid[row][col] === "crown") {
-          // Check row
-          for (let c = 0; c < 6; c++) {
-            if (c !== col && newGrid[row][c] === "crown") {
-              newConflictingQueens[row][col] = true;
-              newConflictingQueens[row][c] = true;
+          // Check row and column
+          for (let i = 0; i < GRID_SIZE; i++) {
+            if (i !== col && newGrid[row][i] === "crown") {
+              newConflictingQueens[row][col] = newConflictingQueens[row][i] =
+                true;
             }
-          }
-          // Check column
-          for (let r = 0; r < 6; r++) {
-            if (r !== row && newGrid[r][col] === "crown") {
-              newConflictingQueens[row][col] = true;
-              newConflictingQueens[r][col] = true;
+            if (i !== row && newGrid[i][col] === "crown") {
+              newConflictingQueens[row][col] = newConflictingQueens[i][col] =
+                true;
             }
           }
         }
@@ -104,80 +102,114 @@ export function SudokuGridComponent({
     }
 
     setConflictingQueens(newConflictingQueens);
-  };
+  }, []);
 
-  const checkSolution = (newGrid: CellState[][]) => {
-    //check if num of queens is correct
-    const queensCount = newGrid
-      .flat()
-      .filter((cell) => cell === "crown").length;
-    if (queensCount !== 6) return; // Only check when there are 6 queens
+  const checkSolution = useCallback(
+    (newGrid: Grid<CellState>) => {
+      const queensCount = newGrid
+        .flat()
+        .filter((cell) => cell === "crown").length;
+      if (queensCount !== GRID_SIZE) return;
 
-    // set solved to true, check for conflicting queens, if conflicting queens, set solved to false
-    let correct = true;
-    for (let row = 0; row < 6; row++) {
-      for (let col = 0; col < 6; col++) {
-        if (newGrid[row][col] === "crown" && conflictingQueens[row][col]) {
-          correct = false;
+      const correct = !newGrid.some((row, rowIndex) =>
+        row.some(
+          (cell, colIndex) =>
+            cell === "crown" && conflictingQueens[rowIndex][colIndex]
+        )
+      );
+
+      setSolved(correct);
+    },
+    [conflictingQueens]
+  );
+
+  const updateGrid = useCallback(
+    (row: number, col: number) => {
+      setGrid((prevGrid) => {
+        const newGrid = prevGrid.map((r) => [...r]);
+        const currentState = newGrid[row][col];
+        newGrid[row][col] =
+          currentState === "" ? "x" : currentState === "x" ? "crown" : "";
+
+        checkTouchingQueens(newGrid);
+        checkConflictingQueens(newGrid);
+        checkSolution(newGrid);
+
+        return newGrid;
+      });
+    },
+    [checkTouchingQueens, checkConflictingQueens, checkSolution]
+  );
+
+  const handleTouchStart = useCallback(
+    (row: number, col: number) => {
+      isDragging.current = true;
+      updateGrid(row, col);
+    },
+    [updateGrid]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isDragging.current) return;
+
+      const touch = e.touches[0];
+      const element = document.elementFromPoint(
+        touch.clientX,
+        touch.clientY
+      ) as HTMLElement;
+      const cellRow = element.dataset.row;
+      const cellCol = element.dataset.col;
+
+      if (cellRow !== undefined && cellCol !== undefined) {
+        const r = parseInt(cellRow);
+        const c = parseInt(cellCol);
+        if (grid[r][c] === "") {
+          updateGrid(r, c);
         }
       }
-    }
-    setSolved(correct);
-  };
+    },
+    [grid, updateGrid]
+  );
 
-  const cycleState = (row: number, col: number) => {
-    setGrid((prevGrid) => {
-      const newGrid = [...prevGrid];
-      const currentState = newGrid[row][col];
-      if (currentState === "") newGrid[row][col] = "x";
-      else if (currentState === "x") newGrid[row][col] = "crown";
-      else newGrid[row][col] = "";
-
-      // Check for touching queens and conflicting queens after updating the grid
-      checkTouchingQueens(newGrid);
-      checkConflictingQueens(newGrid);
-      checkSolution(newGrid);
-
-      return newGrid;
-    });
-  };
-
-  const handleTouchStart = (row: number, col: number) => {
-    isDragging.current = true;
-    cycleState(row, col);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent, row: number, col: number) => {
-    if (!isDragging.current) return;
-
-    const touch = e.touches[0];
-    const element = document.elementFromPoint(
-      touch.clientX,
-      touch.clientY
-    ) as HTMLElement;
-    const cellRow = element.dataset.row;
-    const cellCol = element.dataset.col;
-
-    if (cellRow !== undefined && cellCol !== undefined) {
-      const r = parseInt(cellRow);
-      const c = parseInt(cellCol);
-      if (grid[r][c] === "") {
-        setGrid((prevGrid) => {
-          const newGrid = [...prevGrid];
-          newGrid[r][c] = "x";
-          return newGrid;
-        });
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
+  const handleTouchEnd = useCallback(() => {
     isDragging.current = false;
-  };
+  }, []);
 
-  const findRegionFromCell = (row: number, col: number) => {
-    return regionsGrid[row][col];
-  };
+  const getCellClassName = useCallback(
+    (rowIndex: number, colIndex: number, cellState: CellState) => {
+      const baseClasses =
+        "aspect-square border border-gray-300 flex items-center justify-center text-2xl font-bold cursor-pointer touch-none";
+      const colorClass = COLORS[regions[rowIndex][colIndex]];
+      const stateClass =
+        touchingQueens[rowIndex][colIndex] ||
+        conflictingQueens[rowIndex][colIndex]
+          ? "bg-red-500"
+          : solved && cellState === "crown"
+          ? "bg-green-500"
+          : "";
+
+      return `${baseClasses} ${colorClass} ${stateClass}`;
+    },
+    [regions, touchingQueens, conflictingQueens, solved]
+  );
+
+  const renderCell = useCallback(
+    (cellState: CellState, rowIndex: number, colIndex: number) => {
+      if (cellState === "x") return <X className="w-6 h-6" />;
+      if (cellState === "crown") {
+        const crownClass =
+          touchingQueens[rowIndex][colIndex] ||
+          conflictingQueens[rowIndex][colIndex] ||
+          (solved && cellState === "crown")
+            ? "text-white"
+            : "";
+        return <Crown className={`w-6 h-6 ${crownClass}`} />;
+      }
+      return null;
+    },
+    [touchingQueens, conflictingQueens, solved]
+  );
 
   return (
     <div className="grid grid-cols-6 gap-1 w-full max-w-md mx-auto">
@@ -185,35 +217,15 @@ export function SudokuGridComponent({
         row.map((cell, colIndex) => (
           <div
             key={`${rowIndex}-${colIndex}`}
-            className={`aspect-square border border-gray-300 flex items-center justify-center text-2xl font-bold cursor-pointer touch-none ${
-              nineColours[findRegionFromCell(rowIndex, colIndex)]
-            } ${
-              touchingQueens[rowIndex][colIndex] ||
-              conflictingQueens[rowIndex][colIndex]
-                ? "bg-red-500"
-                : solved && cell === "crown"
-                ? "bg-green-500"
-                : ""
-            }`}
+            className={getCellClassName(rowIndex, colIndex, cell)}
             onTouchStart={() => handleTouchStart(rowIndex, colIndex)}
-            onTouchMove={(e) => handleTouchMove(e, rowIndex, colIndex)}
+            onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            onClick={() => cycleState(rowIndex, colIndex)}
+            onClick={() => updateGrid(rowIndex, colIndex)}
             data-row={rowIndex}
             data-col={colIndex}
           >
-            {cell === "x" && <X className="w-6 h-6" />}
-            {cell === "crown" && (
-              <Crown
-                className={`w-6 h-6 ${
-                  touchingQueens[rowIndex][colIndex] ||
-                  conflictingQueens[rowIndex][colIndex] ||
-                  (solved && cell === "crown")
-                    ? "text-white"
-                    : ""
-                }`}
-              />
-            )}
+            {renderCell(cell, rowIndex, colIndex)}
           </div>
         ))
       )}
