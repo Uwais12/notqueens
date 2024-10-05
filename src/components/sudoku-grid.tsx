@@ -1,4 +1,10 @@
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  useEffect,
+} from "react";
 import { X, Crown } from "lucide-react";
 
 type CellState = "" | "x" | "crown";
@@ -50,7 +56,9 @@ export function SudokuGridComponent({
     () => createGrid(GRID_SIZE, false)
   );
   const [solved, setSolved] = useState(false);
-  const isDragging = useRef(false);
+  const [isInteracting, setIsInteracting] = useState(false);
+  const lastInteractionTimeRef = useRef(0);
+  const lastInteractedCellRef = useRef<[number, number] | null>(null);
 
   const checkTouchingQueens = useCallback((newGrid: Grid<CellState>) => {
     const newTouchingQueens = createGrid(GRID_SIZE, false);
@@ -109,16 +117,20 @@ export function SudokuGridComponent({
       const queensCount = newGrid
         .flat()
         .filter((cell) => cell === "crown").length;
-      if (queensCount !== GRID_SIZE) return;
 
-      const correct = !newGrid.some((row, rowIndex) =>
+      if (queensCount !== GRID_SIZE) {
+        setSolved(false);
+        return;
+      }
+
+      const hasConflicts = newGrid.some((row, rowIndex) =>
         row.some(
           (cell, colIndex) =>
             cell === "crown" && conflictingQueens[rowIndex][colIndex]
         )
       );
 
-      setSolved(correct);
+      setSolved(!hasConflicts);
     },
     [conflictingQueens]
   );
@@ -141,40 +153,67 @@ export function SudokuGridComponent({
     [checkTouchingQueens, checkConflictingQueens, checkSolution]
   );
 
-  const handleTouchStart = useCallback(
+  const handleInteraction = useCallback(
     (row: number, col: number) => {
-      isDragging.current = true;
-      updateGrid(row, col);
+      const now = Date.now();
+      if (
+        now - lastInteractionTimeRef.current > 50 && // Reduce debounce time
+        (lastInteractedCellRef.current?.[0] !== row ||
+          lastInteractedCellRef.current?.[1] !== col)
+      ) {
+        updateGrid(row, col);
+        lastInteractionTimeRef.current = now;
+        lastInteractedCellRef.current = [row, col];
+      }
     },
     [updateGrid]
   );
 
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (!isDragging.current) return;
+  const startInteraction = useCallback(
+    (row: number, col: number, e: React.MouseEvent | React.TouchEvent) => {
+      e.preventDefault();
+      setIsInteracting(true);
+      handleInteraction(row, col);
+    },
+    [handleInteraction]
+  );
 
-      const touch = e.touches[0];
+  const handleMove = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (!isInteracting) return;
+
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+
       const element = document.elementFromPoint(
-        touch.clientX,
-        touch.clientY
+        clientX,
+        clientY
       ) as HTMLElement;
-      const cellRow = element.dataset.row;
-      const cellCol = element.dataset.col;
+      const cellRow = element?.dataset.row;
+      const cellCol = element?.dataset.col;
 
       if (cellRow !== undefined && cellCol !== undefined) {
         const r = parseInt(cellRow);
         const c = parseInt(cellCol);
-        if (grid[r][c] === "") {
-          updateGrid(r, c);
-        }
+        handleInteraction(r, c);
       }
     },
-    [grid, updateGrid]
+    [isInteracting, handleInteraction]
   );
 
-  const handleTouchEnd = useCallback(() => {
-    isDragging.current = false;
+  const stopInteraction = useCallback(() => {
+    setIsInteracting(false);
+    lastInteractedCellRef.current = null;
   }, []);
+
+  useEffect(() => {
+    document.addEventListener("mouseup", stopInteraction);
+    document.addEventListener("touchend", stopInteraction);
+    return () => {
+      document.removeEventListener("mouseup", stopInteraction);
+      document.removeEventListener("touchend", stopInteraction);
+    };
+  }, [stopInteraction]);
 
   const getCellClassName = useCallback(
     (rowIndex: number, colIndex: number, cellState: CellState) => {
@@ -211,23 +250,33 @@ export function SudokuGridComponent({
     [touchingQueens, conflictingQueens, solved]
   );
 
+  const cellRenderer = useCallback(
+    (rowIndex: number, colIndex: number) => {
+      const cell = grid[rowIndex][colIndex];
+      return (
+        <div
+          key={`${rowIndex}-${colIndex}`}
+          className={getCellClassName(rowIndex, colIndex, cell)}
+          onMouseDown={(e) => startInteraction(rowIndex, colIndex, e)}
+          onTouchStart={(e) => startInteraction(rowIndex, colIndex, e)}
+          data-row={rowIndex}
+          data-col={colIndex}
+        >
+          {renderCell(cell, rowIndex, colIndex)}
+        </div>
+      );
+    },
+    [grid, getCellClassName, renderCell, startInteraction]
+  );
+
   return (
-    <div className="grid grid-cols-6 gap-1 w-full max-w-md mx-auto">
+    <div
+      className="grid grid-cols-6 gap-1 w-full max-w-md mx-auto"
+      onMouseMove={handleMove}
+      onTouchMove={handleMove}
+    >
       {grid.map((row, rowIndex) =>
-        row.map((cell, colIndex) => (
-          <div
-            key={`${rowIndex}-${colIndex}`}
-            className={getCellClassName(rowIndex, colIndex, cell)}
-            onTouchStart={() => handleTouchStart(rowIndex, colIndex)}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onClick={() => updateGrid(rowIndex, colIndex)}
-            data-row={rowIndex}
-            data-col={colIndex}
-          >
-            {renderCell(cell, rowIndex, colIndex)}
-          </div>
-        ))
+        row.map((_, colIndex) => cellRenderer(rowIndex, colIndex))
       )}
     </div>
   );
