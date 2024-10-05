@@ -13,8 +13,10 @@ const Home: React.FC = () => {
       <Card className="w-full flex flex-col justify-center md:flex-row">
         <div className="w-full md:w-2/3 aspect-square ">
           <CardHeader>
-            <CardTitle>Daily Challenge</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-3xl font-bold">
+              Daily Challenge
+            </CardTitle>
+            <CardDescription className="text-lg">
               Complete the daily challenge to earn points and climb the
               leaderboard.
             </CardDescription>
@@ -26,8 +28,8 @@ const Home: React.FC = () => {
         <div className="h-100 border-l-2 border-gray-200 my-14"></div>
         <div className="w-full md:w-1/3">
           <CardHeader>
-            <CardTitle>Your Stats</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-3xl font-bold">Your Stats</CardTitle>
+            <CardDescription className="text-lg">
               View your stats and progress towards the next level.
             </CardDescription>
           </CardHeader>

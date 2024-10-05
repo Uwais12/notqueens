@@ -260,7 +260,7 @@ export function generateGame(n: number = 6): Grid {
     console.log("no solution found, lets try again");
     return generateGame(n);
   }
-  return grid;
+  return [grid, initialCells];
 }
 
 function findPossibleSolutions(grid: number[][]) {
