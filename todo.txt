@@ -1,0 +1,7 @@
+TODO:
+- make look nicer
+- add check for if game is won
+- add check for touching queens / same row / same column
+- add timer
+- add stats
+- add borders around regions
