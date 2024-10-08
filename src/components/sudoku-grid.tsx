@@ -220,17 +220,22 @@ export function SudokuGridComponent({
       const baseClasses =
         "aspect-square border border-gray-300 flex items-center justify-center text-2xl font-bold cursor-pointer touch-none";
       const colorClass = COLORS[regions[rowIndex][colIndex]];
+
+      const hasConflicts = grid.some((row, r) =>
+        row.some((cell, c) => touchingQueens[r][c] || conflictingQueens[r][c])
+      );
+
       const stateClass =
         touchingQueens[rowIndex][colIndex] ||
         conflictingQueens[rowIndex][colIndex]
           ? "bg-red-500"
-          : solved && cellState === "crown"
+          : !hasConflicts && solved && cellState === "crown"
           ? "bg-green-500"
-          : "";
+          : colorClass;
 
-      return `${baseClasses} ${colorClass} ${stateClass}`;
+      return `${baseClasses} ${stateClass}`;
     },
-    [regions, touchingQueens, conflictingQueens, solved]
+    [grid, regions, touchingQueens, conflictingQueens, solved]
   );
 
   const renderCell = useCallback(
@@ -239,15 +244,14 @@ export function SudokuGridComponent({
       if (cellState === "crown") {
         const crownClass =
           touchingQueens[rowIndex][colIndex] ||
-          conflictingQueens[rowIndex][colIndex] ||
-          (solved && cellState === "crown")
+          conflictingQueens[rowIndex][colIndex]
             ? "text-white"
-            : "";
+            : "text-black";
         return <Crown className={`w-6 h-6 ${crownClass}`} />;
       }
       return null;
     },
-    [touchingQueens, conflictingQueens, solved]
+    [touchingQueens, conflictingQueens]
   );
 
   const cellRenderer = useCallback(
