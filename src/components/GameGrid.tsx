@@ -3,7 +3,7 @@ import { SudokuGridComponent } from "./sudoku-grid";
 import { generateGame } from "@/lib/gameFunctions";
 
 function GameGrid() {
-  const gridSize = 6;
+  const gridSize = 10;
   //   const regionSizes = getRegionSizes(gridSize);
   //   const regions = fillRegionsNew(regionSizes);
   const [regions, initialCells] = generateGame(gridSize);
