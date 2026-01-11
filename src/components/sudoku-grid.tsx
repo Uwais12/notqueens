@@ -275,7 +275,8 @@ export function SudokuGridComponent({
 
   return (
     <div
-      className="grid grid-cols-6 gap-1 w-full max-w-md mx-auto"
+      className="grid gap-1 w-full max-w-md mx-auto"
+      style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))` }}
       onMouseMove={handleMove}
       onTouchMove={handleMove}
     >
