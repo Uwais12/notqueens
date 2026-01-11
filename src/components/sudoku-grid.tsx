@@ -15,7 +15,7 @@ interface SudokuGridComponentProps {
   solution: number[][];
 }
 
-const GRID_SIZE = 6;
+const GRID_SIZE = 9;
 const COLORS = [
   "bg-red-200",
   "bg-blue-200",
