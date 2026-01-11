@@ -219,7 +219,7 @@ export function SudokuGridComponent({
     (rowIndex: number, colIndex: number, cellState: CellState) => {
       const baseClasses =
         "aspect-square border border-gray-300 flex items-center justify-center text-2xl font-bold cursor-pointer touch-none";
-      const colorClass = COLORS[regions[rowIndex][colIndex]];
+      const colorClass = COLORS[regions[rowIndex][colIndex]-1];
 
       const hasConflicts = grid.some((row, r) =>
         row.some((cell, c) => touchingQueens[r][c] || conflictingQueens[r][c])
