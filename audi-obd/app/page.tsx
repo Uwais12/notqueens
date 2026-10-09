@@ -4,8 +4,9 @@ import { BleElm, initElm, type Transport } from "@/lib/elm";
 import { DemoElm } from "@/lib/demo";
 import { Uds, hex, parseElm, type Ecu } from "@/lib/uds";
 import { ECUS, OPTIONS, PIDS, type Option } from "@/lib/catalog";
+import Dump from "./dump";
 
-type Tab = "options" | "coding" | "live" | "faults" | "log";
+type Tab = "options" | "coding" | "live" | "faults" | "dump" | "log";
 interface ModInfo { ecu: Ecu; part: string; name: string; coding?: number[]; err?: string }
 interface Binding { module: string; byte: number; bit: number }
 interface Backup { at: string; vin: string; module: string; coding: string }
@@ -106,9 +107,9 @@ export default function Home() {
       {t && <div className="card row mut"><span>Adapter: {info.ver}</span><span>Battery: {info.volts}</span><span>VIN: {info.vin || "—"}</span></div>}
 
       <div className="tabs">
-        {(["options", "coding", "live", "faults", "log"] as Tab[]).map((k) =>
+        {(["options", "coding", "live", "faults", "dump", "log"] as Tab[]).map((k) =>
           <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
-            {{ options: "Options", coding: "Modules & Coding", live: "Live data", faults: "Fault codes", log: "Log" }[k]}
+            {{ options: "Options", coding: "Modules & Coding", live: "Live data", faults: "Fault codes", dump: "Full dump", log: "Log" }[k]}
           </button>)}
       </div>
 
@@ -127,6 +128,7 @@ export default function Home() {
         })} />}
       {tab === "live" && <Live uds={uds} t={t} />}
       {tab === "faults" && <Faults uds={uds} run={run} />}
+      {tab === "dump" && <Dump t={t} uds={uds} vin={info.vin} onBusy={setBusy} />}
       {tab === "log" && <div className="card log">{log.map((l, i) => <div key={i} className={l.d}>{l.d === "tx" ? "→ " : l.d === "rx" ? "← " : "• "}{l.m}</div>)}</div>}
 
       <p className="mut">Use at your own risk. Coding changes are written to your car&apos;s control modules. Ignition on, engine off, and use a battery charger for long sessions. Every write backs up the old coding first; you can restore it from Modules &amp; Coding.</p>
