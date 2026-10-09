@@ -30,7 +30,7 @@ export function parseElm(raw: string): number[] {
 export interface Ecu { addr: string; name: string; tx: number; rx: number; }
 
 export class Uds {
-  private current?: Ecu;
+  current?: Ecu;
   constructor(public t: Transport) {}
 
   async select(e: Ecu) {

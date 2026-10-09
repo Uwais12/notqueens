@@ -33,8 +33,27 @@ export default function Dump({ t, uds, vin, onBusy }: { t: Transport | null; uds
     try {
       out.adapter = { id: await t.cmd("ATI"), dev: await t.cmd("AT@1").catch(() => ""), volts: await t.cmd("ATRV") };
 
+      // 0. Raw adapter/protocol probe, so failures can be diagnosed from the file alone.
+      const probe: { cmd: string; reply: string }[] = [];
+      const raw = async (c: string, ms = 3000) => {
+        let reply: string;
+        try { reply = await t.cmd(c, ms); } catch (e) { reply = "ERR " + (e as Error).message; }
+        probe.push({ cmd: c, reply }); return reply;
+      };
+      say("Testing adapter features…");
+      for (const [tx, rx] of [["7E0", "7E8"], ["714", "77E"], ["70E", "778"], ["710", "77A"]]) {
+        for (const c of [`ATSH${tx}`, `ATCRA${rx}`, `ATFCSH${tx}`, "ATFCSD300000", "ATFCSM1"]) await raw(c);
+        await raw("22F187", 4000); await raw("22F190", 4000); await raw("1003", 4000); await raw("1001", 4000);
+      }
+      await raw("ATCRA"); await raw("ATFCSM0"); await raw("ATSH7E0"); await raw("22F187", 4000); await raw("0100", 4000);
+      await raw("ATDP"); await raw("ATCAF1");
+      out.probe = probe;
+      uds.current = undefined;
+
       // 1. Find every module: VAG MQB diagnostic responses are request ID + 0x6A.
-      const found: Ecu[] = [...ECUS.filter((e) => e.addr === "01" || e.addr === "02")];
+      const found: Ecu[] = [];
+      const silent: string[] = [];
+      for (const e of ECUS.filter((x) => x.tx >= 0x7e0)) { const r = await tryDid(e, 0xf187); if (r !== undefined) found.push(e); else silent.push(e.addr); }
       for (let tx = 0x700; tx <= 0x77f && !stop.current; tx++) {
         say(`Looking for modules… 0x${tx.toString(16)}`);
         const e: Ecu = { addr: tx.toString(16).toUpperCase(), name: "", tx, rx: tx + 0x6a };
@@ -43,6 +62,7 @@ export default function Dump({ t, uds, vin, onBusy }: { t: Transport | null; uds
         const r = await tryDid(e, 0xf187);
         if (r !== undefined) found.push(e);
       }
+      out.discovery = { answered: found.map((f) => f.addr), silentKnownEngine: silent };
 
       // 2. Identification + coding for each module.
       const modules: Record<string, unknown>[] = [];
